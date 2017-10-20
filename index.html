@@ -16,6 +16,9 @@
 
         
         <style>
+            div.slides {
+                height: 800px !important;
+            }
             section {
                 padding: 0 !important;
             }
@@ -55,10 +58,12 @@
         <div class="reveal">
             <div class="slides">
                 
+
                 <section data-background="images/title-slide-background.png">
-                    <h2>Faster end-to-end tests with fixture factories</h2>
+                    <h2>Migrating existing codebases to using type annotations</h2>
                     <p><small>Stephan Jaensch<br />@s_jaensch</small></p>
                 </section>
+
 
                 <section data-background="images/slide-background.png">
                     <h3>Yelp's mission</h3>
@@ -74,151 +79,366 @@
                     </aside>
                 </section>
 
+
                 <section data-background="images/slide-background.png">
                     <h3>What I'll talk about</h3>
 
                     <ul>
-                        <li>What are end-to-end tests?</li>
-                        <li>The problem with setting up end-to-end tests</li>
-                        <li>How do fixture (or data) factories help solve the problem?</li>
-                        <li>How can we make tests faster?</li>
+                        <li>What are type annotations, and why you should use them</li>
+                        <li class="fragment">How do you incrementally migrate an existing codebase to them</li>
+                        <li class="fragment">What are some issues you might encounter</li>
+                        <li class="fragment">How can type annotations help across services</li>
                     </ul>
 
                     <aside class="notes">
                         <ul>
-                            <li>Fixtures are setup tasks that need to happen so you can test your code</li>
-                            <li>In our case it's mostly inserting data</li>
+                            <li>I promise the what and why will be short</li>
+                            <li>I'm by no means an expert on type annotations, I'm just talking about what I learned as a user</li>
+                            <li>If you have tips or improvements to share, please come talk to me afterwards or contact me by email / twitter</li>
                         </ul>
                 </section>
 
 
                 <section data-background="images/slide-background.png">
-                    <h3>End-to-end tests - the what and why</h3>
-
-                    <img src="images/testing_pyramid.jpg" style="height: 450px" />
-
-                    <p style="font-size: xx-small;">Source: https://www.ministryoftesting.com/wp-content/uploads/2014/10/typical_pyramid.jpg</p>
-
-                    <aside class="notes">
-                        <ul>
-                            <li>Sometimes also called system tests, integration tests, acceptance tests</li>
-                            <li>The slowest, most expensive tests to run</li>
-                            <li>Verify that everything works together, crucial in a distributed architecture</li>
-                        </ul>
-                    </aside>
-                </section>
-
-                <section data-background="images/slide-background.png">
-                    <h3>Our service technology stack</h3>
-
-                    <img src="images/pyramid_logo.png" style="float: left; box-shadow: none; margin: 2%; width: 28%" />
-                    <img src="images/openapi_logo.png" style="float: left; box-shadow: none; margin: 2%; width: 28%" />
-                    <img src="images/sqlalchemy_logo.png" style="float: left; box-shadow: none; margin: 2%; width: 28%" />
-                    
-                    <aside class="notes">
-                        <ul>
-                            <li>The parts relevant to this talk</li>
-                            <li>We also use other datastores such as Cassandra and ElasticSearch</li>
-                            <li>Going to use MySQL as an example throughout this talk</li>
-                        </ul>
-                    </aside>
-                </section>
-
-                <section data-background="images/slide-background.png">
-                    <h3>What's hard about E2E tests?</h3>
-
-                    <img src="images/distributed_services.png" />
-
-                    <p style="font-size: xx-small;">Source: https://www.slideshare.net/danveloper/microservices-the-right-way</p>
-                    
-                    <aside class="notes">
-                        <ul>
-                            <li>distributed services means code split up across repositories</li>
-                            <li>separated by network layer</li>
-                            <li>services spun up separately, each in its own Docker container</li>
-                            <li>Need to create state in all dependant services</li>
-                        </ul>
-                    </aside>
-                </section>
-
-                <section data-background="images/slide-background.png">
-                    <h3>Creating E2E test state</h3>
-
-                    <img src="images/sql_fixtures.png" />
-                    
-                    <p>Lots of SQL statements...</p>
-
-                    <aside class="notes">
-                        <ul>
-                            <li>Tight coupling to downstream service datastores</li>
-                            <li>Hard to write, hard to get right, hard to maintain</li>
-                        </ul>
-                    </aside>
-                </section>
-
-                <section data-background="images/slide-background.png">
-                    <h3>Taking inspiration from Django</h3>
-
-                    <img src="images/django_fixtures.png" />
-                    
-                    <p>...but for downstream services as well</p>
-                    <p>...and without code duplication</p>
-
-                    <aside class="notes">
-                        <ul>
-                            <li>Want a Python API to create test data on a per-test basis</li>
-                            <li>We don't use Django internally, but Pyramid + SQLAlchemy</li>
-                        </ul>
-                    </aside>
-                </section>
-
-
-                <section data-background="images/slide-background.png">
-                    <h3>Testing factory libraries</h3>
-
-                    <img src="images/model_packages.png" />
-
-                    <ul>
-                        <li>Contain SQLAlchemy models as well as factory functions</li>
-                        <li>Factories provide a slightly higher level of abstraction</li>
-                        <li>Take care of common default values</li>
-                        <li>Make sure data is logically correct</li>
-                    </ul>
-
-                    <aside class="notes">
-                        <ul>
-                            <li>logically correct: creating rows in multiple tables where necessary</li>
-                            <li>As do other companies that run MySQL at scale, we disable foreign key checks, so we can't rely on the database telling us when we forgot something</li>
-                            <li>Documents the users of a service's data API</li>
-                        </ul>
-                    </aside>
-                </section>
-
-
-                <section data-background="images/slide-background.png">
-                    <h3>Test - before</h3>
+                    <h3>Type annotations - the what and why</h3>
 
                     <pre><code class="python" data-trim>
-def test_get_answer_list_empty_list(testapp):
-    response = testapp.get(
-        '/business/{business_id}/question/'
-        '{question_id}/answer/v1'.format(
-            business_id=encrypt_id(3),
-            question_id=encrypt_id(2),
-        ),
-        params={
-            'limit': LIMIT,
-            'offset': OFFSET,
-        },
-    )
+def hello(who: str) -> str:
+    return 'Hello, {}'.format(who)
 
-    assert response.json == {…}
+hello(5)
+                    </code></pre>
+
+                    <pre class="fragment">error: Argument 1 to "hello" has incompatible type "int"; expected "str"</pre>
+
+                    <aside class="notes">
+                        <ul>
+                            <li>Yes it's an obvious mistake, plus the code would still work</li>
+                            <li>But hopefully you're already convinced about type annotations</li>
+                            <li>Much less clear when data gets passed around between modules, call stack gets deep</li>
+                            <li>Also if it was fine to call the function with an int you should say so</li>
+                            <li>Big difference in attitude to "duck typing"</li>
+                        </ul>
+                    </aside>
+                </section>
+
+
+                <section data-background="images/slide-background.png">
+                    <h3>Migrate a codebase to using type annotations</h3>
+
+                    <ul>
+                        <li>Goal: All code is type annotated</li>
+                        <li>Incrementally annotate code</li>
+                        <li>Make sure checks are run for annotated code</li>
+                    </ul>
+                    
+                    <aside class="notes">
+                        <ul>
+                            <li>We want to distribute the task of annotating the codebase</li>
+                            <li>We want to progressively improve the amount of annotated code, while protecting against regressions</li>
+                            <li>Also, we do want to have type checking for the code that we already annotated. As we'll see, that is possible, although there are limitations.</li>
+                        </ul>
+                    </aside>
+                </section>
+
+
+
+                <section data-background="images/slide-background.png">
+                    <h3>The mypy type checker</h3>
+
+                    <img src="images/mypy-release.png" />
+
+                    <aside class="notes">
+                        <ul>
+                            <li>mypy is the static type checker for Python</li>
+                            <li>beta quality: rapid progress, but still has a few bugs and things it doesn't check correctly</li>
+                            <li>expect having to do source code modifcations as you upgrade to a newer version</li>
+                            <li>I'll also be using Python 3.6 syntax for annotations</li>
+                        </ul>
+                    </aside>
+                </section>
+
+
+                <section data-background="images/slide-background.png">
+                    <h3>Enforce annotations</h3>
+
+                    <pre><code class="ini" data-trim>
+[mypy]
+check_untyped_defs = True
+disallow_untyped_calls = False
+disallow_untyped_defs = True
+follow_imports = silent
+ignore_missing_imports = True
+python_version = 3.6
+strict_optional = True
+warn_redundant_casts = True
+                    </code></pre>
+
+                    <p class="fragment" data-code-focus="2-4"></p>
+                    <p class="fragment" data-code-focus="5-6"></p>
+                    <p class="fragment" data-code-focus="8"></p>
+                    
+                    <aside class="notes">
+                        <ul>
+                            <li>Also check code that's not fully type annotated</li>
+                            <li>non-annotated code is an error</li>
+                            <li>Don't complain about issues in code we're not explicitly checking</li>
+                            <li>Make sure you treat None correctly everywhere, significant source of bugs</li>
+                            <li>mypy has a --strict option that's even stricter than this configuration - need to strike a balance between cost and benefit, especially since e.g. decorators are not always easy to annotate</li>
+                            <li>So now we know how mypy needs to be configured, but how do we check newly committed code?</li>
+                        </ul>
+                    </aside>
+                </section>
+
+
+                <section data-background="images/slide-background.png">
+                    <h3>Checking source code on commit</h3>
+
+                    <img src="images/pre-commit.png" />
+                    
+                    <aside class="notes">
+                        <ul>
+                            <li>Yelp has you covered, we open sourced pre-commit</li>
+                            <li>"Hooks" check your code on commit</li>
+                            <li>Many hooks for a lot of different languages available</li>
+                            <li>Very good Python support, as we are heavy Python users</li>
+                        </ul>
+                    </aside>
+                </section>
+
+
+                <section data-background="images/slide-background.png">
+                    <h3>Configuring pre-commit</h3>
+
+                    <pre><code class="yaml" data-trim>
+-   repo: local
+    hooks:
+    -   id: mypy
+        name: mypy
+        entry: mypy
+        language: python
+        language_version: 'python3.6'
+        additional_dependencies: ['mypy']
+        args: ['--config-file', 'mypy-pre-commit.ini']
+        files: ^package_name/.+\.py$
+                    </code></pre>
+
+                    <p class="fragment" data-code-focus="9-10"></p>
+
+                    <pre class="fragment"><code class="bash" data-trim>pre-commit install -f --install-hooks</code></pre>
+                    
+                    <aside class="notes">
+                        <ul>
+                            <li>Create a .pre-commit-config.yaml file in your project directory</li>
+                            <li>Save the mypy configuration we just discussed, and tell mypy to use it</li>
+                            <li>Make sure everybody has the hooks installed: Run the install command as part of your test suite, or during a "setup" step</li>
+                        </ul>
+                    </aside>
+                </section>
+
+
+                <section data-background="images/slide-background.png">
+                    <h3>Checking source code on commit</h3>
+
+                    <img src="images/pre-commit-mypy.png" />
+
+                    <aside class="notes">
+                        <ul>
+                            <li>I modified media.py, our pre-commit hook informs me that I forgot to fully annotate two functions; I also passed an argument of the wrong type to GetPhotosFuture</li>
+                            <li>As you can see, there's many more hooks you can run to improve code consistency and quality</li>
+                            <li>Note that this is not a foolproof solution; developers can skip individual hooks or pre-commit altogether</li>
+                        </ul>
+                    </aside>
+                </section>
+
+
+                <section data-background="images/slide-background.png">
+                    <h3>Running mypy as part of your test suite</h3>
+
+                    <pre><code class="ini" data-trim>
+[mypy]
+ignore_missing_imports = True
+python_version = 3.6
+strict_optional = True
+warn_redundant_casts = True
+                    </code></pre>
+                    
+                    <aside class="notes">
+                        <ul>
+                            <li>Less strict, totally OK to have non-annotated code</li>
+                            <li>Once you call a function that is not annotated all type information for the arguments passed in is lost</li>
+                            <li>In the beginning you won't notice much of an improvement in terms of bug prevention - keep at it!</li>
+                        </ul>
+                    </aside>
+                </section>
+
+
+
+                <section data-background="images/slide-background.png">
+                    <h3>Type your data</h3>
+
+                    <pre><code class="python" data-trim>
+from typing import Iterable, NamedTuple, Optional
+
+class Business(NamedTuple):
+    id: int
+    name: str
+    photos: Iterable[Photo]
+    address1: Optional[str]
+    address2: Optional[str]
+    address3: Optional[str]
+    city: str
+    latitude: float
+    longitude: float
+    ...
+                    </code></pre>
+
+                    <p class="fragment" data-code-focus="6"></p>
+
+                    <aside class="notes">
+                        <ul>
+                            <li>A lot of bugs happen because opaque dictionaries are passed around</li>
+                            <li>Even worse, sometimes these dictionaries are mutated along the way</li>
+                            <li>NamedTuples are a great way to defining your data contract, plus they're immutable</li>
+                            <li>As you can see here, you can nest definitions</li>
+                        </ul>
+                    </aside>
+                </section>
+
+
+                <section data-background="images/slide-background.png">
+                    <h3>How to type the helper functions?</h3>
+
+                    <pre><code class="python" data-trim>
+def namedtuple_from_dict(
+    nt_class,
+    dict_values,
+):
+    """Create a namedtuple from a dict, using the namedtuple
+    attribute names to look up values in the dict."""
+    return nt_class._make(
+        dict_values.get(k) for k in nt_class._fields
+    )
+                    </code></pre>
+
+                    <aside class="notes">
+                        <ul>
+                            <li>One of our helper functions for working with namedtuples</li>
+                            <li>Should be easy to annotate, right?</li>
+                        </ul>
+                    </aside>
+                </section>
+
+
+                <section data-background="images/slide-background.png">
+                    <h3>How to type the helper functions?</h3>
+
+                    <pre><code class="python" data-trim>
+def namedtuple_from_dict(
+    nt_class: Type[NamedTuple],
+    dict_values: Dict,
+) -> NamedTuple:
+    """Create a namedtuple from a dict, using the namedtuple
+    attribute names to look up values in the dict."""
+    return nt_class._make(
+        dict_values.get(k) for k in nt_class._fields
+    )
+                    </code></pre>
+
+                    <p class="fragment" data-code-focus="2-4"></p>
+
+                    <pre class="fragment"><code class="text" data-trim>
+error: Incompatible return value type
+ (got "NamedTuple", expected "Business")
+error: Argument 1 to "namedtuple_from_dict" has incompatible
+ type "Type[Business]"; expected "Type[NamedTuple]"
+                    </code></pre>
+
+                    <aside class="notes">
+                        <ul>
+                            <li>nt_class is a NamedTuple class, not an instance, that's why we need to use Type</li>
+                            <li>And we return an instance of that NamedTuple class</li>
+                            <li>Unfortunately this doesn't work, as we do care about what NamedTuple instance we're returning</li>
+                        </ul>
+                    </aside>
+                </section>
+
+
+                <section data-background="images/slide-background.png">
+                    <h3>How to type the helper functions?</h3>
+
+                    <pre><code class="python" data-trim>
+Struct = TypeVar('Struct', bound=NamedTuple)
+
+def namedtuple_from_dict(
+    nt_class: Type[Struct],
+    dict_values: Dict,
+) -> Struct:
+    """Create a namedtuple from a dict, using the namedtuple
+    attribute names to look up values in the dict."""
+    return nt_class._make(
+        dict_values.get(k) for k in nt_class._fields
+    )
+                    </code></pre>
+
+                    <p class="fragment" data-code-focus="1"></p>
+                    <p class="fragment" data-code-focus="4,6"></p>
+
+                    <pre class="fragment"><code class="text" data-trim>
+error: Value of type variable "Struct" of "namedtuple_from_dict"
+ cannot be "Business"
+                    </code></pre>
+
+                    <aside class="notes">
+                        <ul>
+                            <li>So we read up on how generics work and implement that solution</li>
+                            <li>We introduce a new TypeVar, and declare that a Struct must inherit from NamedTuple</li>
+                            <li>Unfortunately, this doesn't work either: NamedTuple is not a class, but a class constructor</li>
+                            <li>This is also the reason for the second error on the last slide, why Business was not acceptable instead of NamedTuple</li>
+                        </ul>
+                    </aside>
+                </section>
+
+
+                <section data-background="images/slide-background.png">
+                    <h3>How to type the helper functions?</h3>
+
+                    <pre><code class="python" data-trim>
+Struct = TypeVar('Struct')
+
+def namedtuple_from_dict(
+    nt_class: Type[Struct],
+    dict_values: Dict,
+) -> Struct:
+    """Create a namedtuple from a dict, using the namedtuple
+    attribute names to look up values in the dict."""
+    return nt_class._make(    # type: ignore
+        dict_values.get(k) for k in nt_class._fields  # type: ignore
+    )
+                    </code></pre>
+
+                    <p class="fragment" data-code-focus="1"></p>
+                    <p class="fragment" data-code-focus="9-10"></p>
+
+                    <aside class="notes">
+                        <ul>
+                            <li>We need to remove the bounding; but now all we know is that we receive a class of some type and return an instance</li>
+                            <li>We lost knowledge about the fact that each of these classes will have a _field attribute and a _make method</li>
+                            <li>So we need to tell mypy to ignore these errors</li>
+                            <li>We still maintain the most important type information: the type of the instance we return</li>
+                            <li>But mypy cannot tell us when we pass an argument in that is not a NamedTuple</li>
+                        </ul>
+                    </aside>
+                </section>
+
+
+                <section data-background="images/slide-background.png">
+                    <h3>TypedDict</h3>
+
+                    <pre><code class="python" data-trim>
                     </code></pre>
 
                     <p class="fragment" data-code-focus="3"></p>
-                    <p class="fragment" data-code-focus="4"></p>
-                    <p class="fragment" data-code-focus="5"></p>
-                    <p class="fragment" data-code-focus="6"></p>
 
                     <aside class="notes">
                         <ul>
@@ -228,6 +448,14 @@ def test_get_answer_list_empty_list(testapp):
                         </ul>
                     </aside>
                 </section>
+
+
+
+
+
+
+
+
 
 
                 <section data-background="images/slide-background.png">
