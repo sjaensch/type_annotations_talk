@@ -16,14 +16,16 @@
 
         
         <style>
-            div.slides {
-                height: 800px !important;
-            }
             section {
+                font-size: larger !important;
                 padding: 0 !important;
             }
             pre code {
                 max-height: 100% !important;
+                font-size: larger !important;
+            }
+            code.text {
+                background-color: #fed;
             }
             img {
                 border: 0 !important;
@@ -109,7 +111,10 @@ def hello(who: str) -> str:
 hello(5)
                     </code></pre>
 
-                    <pre class="fragment">error: Argument 1 to "hello" has incompatible type "int"; expected "str"</pre>
+                    <pre class="fragment"><code class="text" data-trim>
+error: Argument 1 to "hello" has incompatible type "int";
+ expected "str"
+                    </code></pre>
 
                     <aside class="notes">
                         <ul>
@@ -307,7 +312,43 @@ class Business(NamedTuple):
 
 
                 <section data-background="images/slide-background.png">
-                    <h3>How to type the helper functions?</h3>
+                    <h3>typed dictionaries</h3>
+
+                    <pre><code class="python" data-trim>
+from typing import Optional
+from mypy_extensions import TypedDict
+
+class BusinessDict(TypedDict):
+    id: int
+    name: str
+    address1: Optional[str]
+    address2: Optional[str]
+                    </code></pre>
+
+                    <pre class="fragment"><code class="python" data-trim>
+business = BusinessDict(
+    id=42, name='Yelp', address1=None, address2=None,
+)
+value = business.get('adress2', '')
+                    </code></pre>
+
+                    <pre class="fragment"><code class="text" data-trim>
+error: TypedDict "BusinessDict" has no key 'adress2'
+                    </code></pre>
+
+                    <aside class="notes">
+                        <ul>
+                            <li>Unlike maps in other languages, you can have different types based on the key name</li>
+                            <li>So even if you can't or don't want to do the work to convert your dicts to namedtuples, you can annotate those dicts and give them such a type</li>
+                            <li>We can even use those classes in our code, just like we would with an untyped dict</li>
+                            <li>And mypy will protect us from a class of pretty insidious bugs: no exception is raised, the code seems to function properly but returns the wrong data</li>
+                        </ul>
+                    </aside>
+                </section>
+
+
+                <section data-background="images/slide-background.png">
+                    <h3>How to type the helper function?</h3>
 
                     <pre><code class="python" data-trim>
 def namedtuple_from_dict(
@@ -331,7 +372,7 @@ def namedtuple_from_dict(
 
 
                 <section data-background="images/slide-background.png">
-                    <h3>How to type the helper functions?</h3>
+                    <h3>How to type the helper function?</h3>
 
                     <pre><code class="python" data-trim>
 def namedtuple_from_dict(
@@ -365,7 +406,7 @@ error: Argument 1 to "namedtuple_from_dict" has incompatible
 
 
                 <section data-background="images/slide-background.png">
-                    <h3>How to type the helper functions?</h3>
+                    <h3>Using Generics</h3>
 
                     <pre><code class="python" data-trim>
 Struct = TypeVar('Struct', bound=NamedTuple)
@@ -401,7 +442,7 @@ error: Value of type variable "Struct" of "namedtuple_from_dict"
 
 
                 <section data-background="images/slide-background.png">
-                    <h3>How to type the helper functions?</h3>
+                    <h3>The solution</h3>
 
                     <pre><code class="python" data-trim>
 Struct = TypeVar('Struct')
@@ -419,6 +460,7 @@ def namedtuple_from_dict(
 
                     <p class="fragment" data-code-focus="1"></p>
                     <p class="fragment" data-code-focus="9-10"></p>
+                    <p class="fragment"><a href="https://github.com/python/mypy/issues/3915">https://github.com/python/mypy/issues/3915</a></p>
 
                     <aside class="notes">
                         <ul>
@@ -433,62 +475,131 @@ def namedtuple_from_dict(
 
 
                 <section data-background="images/slide-background.png">
-                    <h3>TypedDict</h3>
+                    <h3>NamedTuple and count / index</h3>
 
                     <pre><code class="python" data-trim>
+class Pagination(NamedTuple):
+    count: int
+    index: int
                     </code></pre>
 
-                    <p class="fragment" data-code-focus="3"></p>
+                    <pre class="fragment"><code class="text" data-trim>
+error: Incompatible types in assignment (expression has type "int",
+ base class "tuple" defined the type as
+ "Callable[[Tuple[int, ...], Any], int]")
+
+error: Incompatible types in assignment (expression has type "int",
+ base class "tuple" defined the type as
+ "Callable[[Tuple[int, ...], Any, int, int], int]")
+                    </code></pre>
 
                     <aside class="notes">
                         <ul>
-                            <li>We use pytest as a testing framework</li>
-                            <li>We're passing in two IDs in the URL path</li>
-                            <li>These are hardcoded in the test and correspond to IDs in SQL statements</li>
+                            <li>tuples have index and count methods, our properties are shadowing them</li>
+                            <li>The NamedTuple behaves as expected (we just can't call count or index anymore)</li>
+                            <li>But mypy will complain as it doesn't allow us to redefine the type of those two properties</li>
                         </ul>
                     </aside>
                 </section>
 
 
-
-
-
-
-
-
-
-
                 <section data-background="images/slide-background.png">
-                    <h3>Test - after</h3>
+                    <h3>Redefining the type of properties</h3>
 
                     <pre><code class="python" data-trim>
-def test_get_answer_list_empty_list(testapp, question, business_id):
-    response = testapp.get(
-        '/business/{business_id}/question/'
-        '{question_id}/answer/v1'.format(
-            business_id=encrypt_id(business_id),
-            question_id=encrypt_id(question.id),
-        ),
-        params={
-            'limit': LIMIT,
-            'offset': OFFSET,
-        },
-    )
+class RegistryMetaclass(type):
+    """Error mapping registry class."""
+    registry: Dict[str, Type['BaseErrorMapping']] = {}
+    key_name: str = 'error_id'
 
-    assert response.json == {…}
+class ValidationRegistryMetaclass(RegistryMetaclass):
+    registry: Dict[str, Type['BaseValidationError']] = {}
+    key_name = 'exc_cls'
                     </code></pre>
 
-                    <p class="fragment" data-code-focus="1"></p>
-                    <p class="fragment" data-code-focus="5"></p>
-                    <p class="fragment" data-code-focus="6"></p>
+                    <pre class="fragment"><code class="text" data-trim>
+error: Incompatible types in assignment (expression has type
+ "Dict[str, Type[BaseValidationError]]", base class "RegistryMetaclass"
+ defined the type as "Dict[str, Type[BaseErrorMapping]]")
+                    </code></pre>
 
+                    <p class="fragment"><a href="https://www.python.org/dev/peps/pep-0544/">https://www.python.org/dev/peps/pep-0544/</a></p>
 
                     <aside class="notes">
                         <ul>
-                            <li>pytest allows us to use fixture functions by having arguments of the same name</li>
-                            <li>We use two new pytest fixture functions</li>
-                            <li>IDs are not hardcoded anymore, but the result of running those pytest fixture functions</li>
-                            <li>We get to remove the SQL statements for this test</li>
+                            <li>you can try defining the type in the base class as a union, but that can have other unintended consequences</li>
+                            <li>The Protocols PEP will solve this and allow us to define behavior, i.e. support static duck typing</li>
+                            <li>structural subtyping should also enable us to properly type the namedtuple_from_dict function</li>
+                        </ul>
+                    </aside>
+                </section>
+
+
+                <section data-background="images/slide-background.png">
+                    <h3>How to annotate descriptors</h3>
+
+                    <pre><code class="python" data-trim>
+T = TypeVar('T')
+V = TypeVar('V')
+
+class SetOnceProperty(Generic[T, V]):
+
+    def __get__(self, instance: Optional[T], owner: Type[T])
+     -> Union[V, 'SetOnceProperty']:
+        if instance is None:
+            return self
+        return self._property_map[instance]
+
+    def __set__(self, instance: T, value: V) -> None:
+        if instance in self._property_map:
+            raise AttributeError('this attribute can only be set once.')
+        self._property_map[instance] = value
+
+
+class BizAppContext():
+    biz_user_id = SetOnceProperty['BizAppContext', int]()
+    ...
+                    </code></pre>
+
+                    <p class="fragment" data-code-focus="4"></p>
+                    <p class="fragment" data-code-focus="6-7"></p>
+                    <p class="fragment" data-code-focus="13-14"></p>
+                    <p class="fragment" data-code-focus="19"></p>
+
+                    <img class="fragment" data-src="images/document-descriptors.png" />
+
+                    <aside class="notes">
+                        <ul>
+                            <li>you can try defining the type in the base class as a union, but that can have other unintended consequences</li>
+                            <li>The Protocols PEP will solve this and allow us to define behavior, i.e. support static duck typing</li>
+                            <li>structural subtyping should also enable us to properly type the namedtuple_from_dict function</li>
+                        </ul>
+                    </aside>
+                </section>
+
+
+                <section data-background="images/slide-background.png">
+                    <h3>Recursive types</h3>
+
+                    <pre><code class="python" data-trim>
+class Category(NamedTuple):
+    id: int
+    name: str
+    children: List['Category']
+                    </code></pre>
+
+                    <pre class="fragment"><code class="text" data-trim>
+error: Recursive types not fully supported yet,
+ nested types replaced with "Any"
+                    </code></pre>
+
+                    <img class="fragment" data-src="images/recursive-types.png" />
+
+                    <aside class="notes">
+                        <ul>
+                            <li>Another mypy limitation that you'll probably hit when working with a larger codebase</li>
+                            <li>Tree-like data structures will probably be mostly untyped</li>
+                            <li>You can add typing information with the cast function, but you'll have to remember to do this everywhere</li>
                         </ul>
                     </aside>
                 </section>
@@ -746,8 +857,9 @@ $ python -m pytest -s -vvv -n 4 tests/acceptance
                 history: true,
                 center: true,
                 controls: false,
-                /*width: '100%',
-                height: '100%', */
+                width: '90%',
+                height: '100%',
+                margin: 0.0,
 
                 // More info https://github.com/hakimel/reveal.js#dependencies
                 // { src: 'plugin/highlight/highlight.js', async: true, callback: function() { hljs.initHighlightingOnLoad(); } }
