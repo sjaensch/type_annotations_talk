@@ -76,7 +76,7 @@
 
                     <aside class="notes">
                         <ul>
-                            <li>We have over 100 million reviews online to help you select just the right one</li>
+                            <li>We have over 130 million reviews online to help you select just the right one</li>
                         </ul>
                     </aside>
                 </section>
@@ -97,12 +97,13 @@
                             <li>I promise the what and why will be short</li>
                             <li>I'm by no means an expert on type annotations, I'm just talking about what I learned as a user</li>
                             <li>If you have tips or improvements to share, please come talk to me afterwards or contact me by email / twitter</li>
+                            <li>I'll be showing a lot of code to illustrate my examples, so if you don't like slides with code you might want to leave now</li>
                         </ul>
                 </section>
 
 
                 <section data-background="images/slide-background.png">
-                    <h3>Type annotations - the what and why</h3>
+                    <h3>Python type annotations</h3>
 
                     <pre><code class="python" data-trim>
 def hello(who: str) -> str:
@@ -119,10 +120,10 @@ error: Argument 1 to "hello" has incompatible type "int";
                     <aside class="notes">
                         <ul>
                             <li>Yes it's an obvious mistake, plus the code would still work</li>
-                            <li>But hopefully you're already convinced about type annotations</li>
                             <li>Much less clear when data gets passed around between modules, call stack gets deep</li>
                             <li>Also if it was fine to call the function with an int you should say so</li>
                             <li>Big difference in attitude to "duck typing"</li>
+                            <li>This is really a continuation of explicit is better than implicit</li>
                         </ul>
                     </aside>
                 </section>
@@ -141,6 +142,7 @@ error: Argument 1 to "hello" has incompatible type "int";
                         <ul>
                             <li>We want to distribute the task of annotating the codebase</li>
                             <li>We want to progressively improve the amount of annotated code, while protecting against regressions</li>
+                            <li>We're going to do that on a per-file basis: As people touch a file, we expect them to annotate it</li>
                             <li>Also, we do want to have type checking for the code that we already annotated. As we'll see, that is possible, although there are limitations.</li>
                         </ul>
                     </aside>
@@ -185,7 +187,6 @@ warn_redundant_casts = True
                     
                     <aside class="notes">
                         <ul>
-                            <li>Also check code that's not fully type annotated</li>
                             <li>non-annotated code is an error</li>
                             <li>Don't complain about issues in code we're not explicitly checking</li>
                             <li>Make sure you treat None correctly everywhere, significant source of bugs</li>
@@ -271,7 +272,7 @@ warn_redundant_casts = True
                     <aside class="notes">
                         <ul>
                             <li>Less strict, totally OK to have non-annotated code</li>
-                            <li>Once you call a function that is not annotated all type information for the arguments passed in is lost</li>
+                            <li>Once you call a function that is not annotated we have no type checking at all for its return value!</li>
                             <li>In the beginning you won't notice much of an improvement in terms of bug prevention - keep at it!</li>
                         </ul>
                     </aside>
@@ -340,7 +341,7 @@ error: TypedDict "BusinessDict" has no key 'adress2'
                         <ul>
                             <li>Unlike maps in other languages, you can have different types based on the key name</li>
                             <li>So even if you can't or don't want to do the work to convert your dicts to namedtuples, you can annotate those dicts and give them such a type</li>
-                            <li>We can even use those classes in our code, just like we would with an untyped dict</li>
+                            <li>We can, but don't have to use those classes in our code, it's enough to use them as annotations</li>
                             <li>And mypy will protect us from a class of pretty insidious bugs: no exception is raised, the code seems to function properly but returns the wrong data</li>
                         </ul>
                     </aside>
@@ -364,7 +365,9 @@ def namedtuple_from_dict(
 
                     <aside class="notes">
                         <ul>
-                            <li>One of our helper functions for working with namedtuples</li>
+                            <li>Hopefully you're convinced that you want to use type safe data structures, so let's use namedtuples everywhere!</li>
+                            <li>To make that as easy as possible for developers, we provide a helper function for converting all of those untyped dictionaries into NamedTuples</li>
+                            <li>It instantiates the NamedTuple class by looking up the property names of the NamedTuple in the dictionary - we use the NamedTuple definition as the source of truth for the data we want to keep</li>
                             <li>Should be easy to annotate, right?</li>
                         </ul>
                     </aside>
@@ -377,7 +380,7 @@ def namedtuple_from_dict(
                     <pre><code class="python" data-trim>
 def namedtuple_from_dict(
     nt_class: Type[NamedTuple],
-    dict_values: Dict,
+    dict_values: Dict[str, Any],
 ) -> NamedTuple:
     """Create a namedtuple from a dict, using the namedtuple
     attribute names to look up values in the dict."""
@@ -398,6 +401,7 @@ error: Argument 1 to "namedtuple_from_dict" has incompatible
                     <aside class="notes">
                         <ul>
                             <li>nt_class is a NamedTuple class, not an instance, that's why we need to use Type</li>
+                            <li>This way to annotate dicts doesn't really tell us much about its contents</li>
                             <li>And we return an instance of that NamedTuple class</li>
                             <li>Unfortunately this doesn't work, as we do care about what NamedTuple instance we're returning</li>
                         </ul>
@@ -570,9 +574,11 @@ class BizAppContext():
 
                     <aside class="notes">
                         <ul>
-                            <li>you can try defining the type in the base class as a union, but that can have other unintended consequences</li>
-                            <li>The Protocols PEP will solve this and allow us to define behavior, i.e. support static duck typing</li>
-                            <li>structural subtyping should also enable us to properly type the namedtuple_from_dict function</li>
+                            <li>Generic class, T is the type of the object using the descriptor, V the type of the value the property will store</li>
+                            <li>Typing the __get__ method is slightly tricky, as instance can be None, that's why we use Optional[T]</li>
+                            <li>And in that case the descriptor returns itself, so we have to annotate the return value as a Union</li>
+                            <li>The __set__ method is where we implement the functionality</li>
+                            <li>when we define biz_user_id we specify the two types, so now mypy knows biz_user_id is an int and will do proper type checking</li>
                         </ul>
                     </aside>
                 </section>
@@ -606,225 +612,264 @@ error: Recursive types not fully supported yet,
 
 
                 <section data-background="images/slide-background.png">
-                    <h3>The business fixture</h3>
+                    <h2>Type annotations with distributed code</h2>
+
+                    <aside class="notes">
+                        <ul>
+                            <li>If you have a large legacy codebase, chances are you've started to invest in a service oriented architecture (we at Yelp certainly have)</li>
+                            <li>I've spoken in the past about how we do distributed services at Yelp, and the challenges it poses in regards to reliability and testability with these codebases that get developed and deployed independently.</li>
+                            <li>How do you know your change doesn't break anybody else's code? How can you make sure you're using this new endpoint correctly?</li>
+                        </ul>
+                    </aside>
+                </section>
+
+
+                <section data-background="images/slide-background.png">
+                    <h3>Service oriented architecture</h3>
+
+                    <img data-src="images/services.png" style="box-shadow: none;" />
+
+                    <aside class="notes">
+                        <ul>
+                            <li>How can we gain confidence in our changes? Typically the solution has been to write end-to-end tests, where you create these services in a test environment and make real calls to them</li>
+                            <li>End-to-end tests are costly to run, eventually it gets infeasible to spin up all of your dependencies, which by the way might have dependencies of their own</li>
+                            <li>One solution that can help is using fake services. My colleague Lauris is talking about that right now in the other room, but spoiler alert, it still involves launching other processes, typically in a Docker container</li>
+                        </ul>
+                    </aside>
+                </section>
+
+
+                <section data-background="images/slide-background.png">
+                    <h3>Anatomy of a service call</h3>
+
+                    <img data-src="images/service-call.png" style="box-shadow: none;" />
+
+                    <aside class="notes">
+                        <ul>
+                            <li>The service defines it's API in a spec document</li>
+                            <li>The client uses a library that knows about the spec, parses and utilizes it for making the endpoint calls</li>
+                            <li>Is there a way to take advantage of this spec and provide "compile time" checks?</li>
+                        </ul>
+                    </aside>
+                </section>
+
+
+                <section data-background="images/slide-background.png">
+                    <h3>The OpenAPI spec</h3>
+
+                    <pre><code class="yaml" data-trim>
+/business/{business_id}/v1:
+  get:
+    operationId: business_info
+    parameters:
+    - $ref: '#/parameters/AcceptLanguage'
+    - description: Business identifier
+      in: path
+      name: business_id
+      required: true
+      type: int
+    responses:
+      '200':
+        schema:
+          $ref: '#/definitions/Business'
+...          
+                </code></pre>
+
+                    <p class="fragment" data-code-focus="1-2"></p>
+                    <p class="fragment" data-code-focus="12-14"></p>
+
+                    <aside class="notes">
+                        <ul>
+                            <li>This is how the definition of an endpoint looks like, in this case to retrieve information for a business</li>
+                            <li>I've shortened and simplified the example slightly just so it fits on the screen</li>
+                            <li>The response definition references a business object, let's take a look at that</li>
+                        </ul>
+                    </aside>
+                </section>
+
+
+                <section data-background="images/slide-background.png">
+                    <h3>An OpenAPI model</h3>
+
+                    <pre><code class="yaml" data-trim>
+Business:
+  properties:
+    address1:
+      type: string
+    address2:
+      type: string
+    alias:
+      type: string
+    has_business_upgrades:
+      type: boolean
+    review_rating:
+      type: string
+                </code></pre>
+
+                    <aside class="notes">
+                        <ul>
+                            <li>Again, I shortened it down to the essentials, so I removed documentation and other unrelated markup</li>
+                            <li>We've seen a business object definition like this already, right? This looks quite similar to how we'd define a NamedTuple or a TypedDict</li>
+                            <li>The thing is, if you're manually writing those Python class definitions, they're bound to get out of sync with the spec</li>
+                        </ul>
+                    </aside>
+                </section>
+
+
+                <section data-background="images/slide-background.png">
+                    <h3>Generating typed objects and functions</h3>
+
+                    <img src="images/stubs-from-spec.png" style="box-shadow: none;" />
+
+                    <aside class="notes">
+                        <ul>
+                            <li>The spec already contains all of the information we need</li>
+                            <li>What if we parse the spec and generate NamedTuple objects for each model definition in the spec</li>
+
+                        </ul>
+                    </aside>
+                </section>
+
+
+                <section data-background="images/slide-background.png">
+                    <h3>Putting it all together</h3>
 
                     <pre><code class="python" data-trim>
-@pytest.fixture
-def business_id(db_session):
-    return business_factory.create(db_session)
+class BusinessFuture(HTTPFuture):
+    pass
+
+class Business(NamedTuple):
+    id: int
+    address1: str
+    address2: Optional[str]
+    review_rating: str
                     </code></pre>
 
                     <pre class="fragment"><code class="python" data-trim>
-def create(
-    session,
-    name='Levchins',
-    …
-):
-    business = Business(
-        name=name,
-        …
-    )
-    session.add(business)
-    session.commit()
-    return business.id
-                    </code></pre>
-
-                    <aside class="notes">
-                        <ul>
-                            <li>Business fixture extremely short, real work done in our library</li>
-                            <li>The create method is just a wrapper around an SQLAlchemy model</li>
-                            <li>Provides reasonable defaults and DRY</li>
-                        </ul>
-                    </aside>
-                </section>
-
-
-                <section data-background="images/slide-background.png">
-                    <h3>Why not use models directly?</h3>
-
-                    <img src="images/biz_user_relationship.png" style="box-shadow: none;" />
-
-                    <aside class="notes">
-                        <ul>
-                            <li>Some relational data needs to be created at the same time</li>
-                            <li>We disable constraint checking in MySQL for scalability</li>
-                            <li>All users have an email</li>
-                            <li>If a business user has a business then let's create that relationship on user creation</li>
-                            <li>This should mirror what your non-test code does when creating the database entries</li>
-                        </ul>
-                    </aside>
-                </section>
-
-
-                <section data-background="images/slide-background.png">
-                    <h3>Why not use models directly?</h3>
-
-                    <pre><code class="python" data-trim>
-def biz_user_create(session, business_id=None, email=None, …):
-    """Creates a biz_user with password 'password'"""
-    biz_user = BizUser(
-        …
-    )
-    session.add(biz_user)
-    session.flush()
-
-    session.add(
-        BizUserPrivate(
-            biz_user_id=biz_user.id,
-            email=email,
-        )
-    )
-
-    if business_id:
-        add_biz_user_to_business(session, biz_user.id, business_id)
-
-    session.commit()
-
-    return biz_user.id
-                    </code></pre>
-
-                    <p class="fragment" data-code-focus="9-14"></p>
-                    <p class="fragment" data-code-focus="17"></p>
-
-                    <aside class="notes">
-                        <ul>
-                            <li>We insert data in at least two tables</li>
-                            <li>Optionally inserting into a third table as well, using a function that can also be called independently</li>
-                        </ul>
-                    </aside>
-                </section>
-
-
-                <section data-background="images/slide-background.png">
-                    <h3>Downstream services with data creation APIs</h3>
-
-                    <pre><code class="python" data-trim>
-@pytest.fixture
-def question(question_answer_client, business_id, confirmed_user_id):
-    return question_answer_client.business.create_question(
-        body={
-            'text': 'Test question...?',
-            'platform_source': 'other',
-            'subscription': False,
-        },
+def get_business_future(
+    business_id: int
+) -> BusinessFuture:
+    return client.business.business_info(
         business_id=business_id,
-    ).result().question
+    )
+
+def get_business_from_future(
+    business_future: BusinessFuture,
+) -> Business:
+    return business_future.result(timeout=TIMEOUT)
                     </code></pre>
 
                     <aside class="notes">
                         <ul>
-                            <li>question_answer_client is a Swagger client, a tool for communicating between services</li>
-                            <li>This fixture expects the data creation API to work</li>
-                            <li>You could get a failure during fixture execution, which is harder to debug</li>
-                            <li>Sometimes you're using that same API during other tests</li>
+                            <li>Fully type checked from start to end - including the function call chain</li>
+                            <li>Makes sure you supply all required arguments, with the right type</li>
+                            <li>Structured response objects, no possibility for mistyping an attribute name</li>
+                            <li>Modern IDEs like PyCharm provide advanced intellisense and autocompletion</li>
+                            <li>All of this is checked and verified before you wrote a single line of tests!</li>
                         </ul>
                     </aside>
                 </section>
 
 
                 <section data-background="images/slide-background.png">
-                    <h3>Pros and Cons</h3>
-
-                    <ul>
-                        <li>Natural fit for pytest fixtures</li>
-                        <li class="fragment">Much easier data creation</li>
-                        <li class="fragment">People create separate data entries for each test "automatically"</li>
-                        <li class="fragment">Need to maintain data creation factories</li>
-                        <li class="fragment">Potentially slower (not sharing data across tests)</li>
-                    </ul>
-
-                    <aside class="notes">
-                        <ul>
-                            <li>You can slowly migrate to data creation factories</li>
-                            <li>No need to rewrite existing tests</li>
-                            <li>Code in different codebases always adds some maintenance overhead</li>
-                            <li>Use models from your data creation package in your service codebase if possible</li>
-                        </ul>
-                    </aside>
-                </section>
-
-
-                <section data-background="images/slide-background.png">
-                    <h3>How to make tests faster</h3>
-
-                    <img src="images/parallel_test_execution.jpg" style="width: 80%" />
-
-                    <p style="font-size: xx-small;">Source: http://www.methodsandtools.com/tools/selendroid.html</p>
-
-                    <aside class="notes">
-                        <ul>
-                            <li>Two issues with end-to-end tests that write data</li>
-                            <li>Tests not repeatable</li>
-                            <li>Tests dependant on execution order</li>
-                            <li>Both issues solved by using fixtures with data factories</li>
-                        </ul>
-                    </aside>
-                </section>
-
-
-                <section data-background="images/slide-background.png">
-                    <h3>Execute tests in parallel with pytest</h3>
+                    <h3>Mocking out the network call</h3>
 
                     <pre><code class="python" data-trim>
-$ pip install pytest-xdist
-$ python -m pytest -s -vvv -n 4 tests/acceptance
+def get_business_review_rating(business_id):
+    business = client.business.business_info(
+        business_id=business_id,
+    ).result(timeout=TIMEOUT)
+
+    return business.review_rating
                     </code></pre>
 
-                    <img class="fragment" src="images/fix_tests_prelaunch.png" />
+                    <pre class="fragment"><code class="python" data-trim>
+def test_get_business_review_rating():
+    mock_business = mock.Mock(review_rating=4.5)
+    with mock.patch('my_package.client') as client:
+        client.business.business_info.return_value.\
+            result.return_value = mock_business
+
+        review_rating = get_business_review_rating(5)
+
+    assert review_rating == mock_business.review_rating
+                    </code></pre>
+
+                    <p class="fragment" data-code-focus="7"></p>
 
                     <aside class="notes">
                         <ul>
-                            <li>Generally tests doing writes and sharing fixtures with tests that do reads are problematic</li>
-                            <li>The issue comes with tests that share these fixtures - one expects a certain state, the other changes the state</li>
-                            <li>The tests rely on a deterministic execution order - randomizing test execution order would make them just as flaky</li>
+                            <li>This doesn't catch the error that we're providing the wrong mock data, and consequently are not properly converting the rating to float (which is what we do want the function to return)</li>
+                            <li>Catching these types of errors requires integration tests that spin up a version of the service you're calling</li>
+                            <li>My colleague Lauris Jullien is giving a talk right now about how to make that easier, but spoiler alert, it still requires you to spin up another process, typically within a Docker container</li>
+                            <li>Can our work we did help us detect these errors easier?</li>
                         </ul>
                     </aside>
                 </section>
 
 
                 <section data-background="images/slide-background.png">
-                    <h3>Execute tests in parallel with pytest</h3>
+                    <h3>Testing with type safe models</h3>
 
-                    <img src="images/fix_tests_postlaunch.png" />
+                    <pre><code class="python" data-trim>
+def get_business_review_rating(business_id):
+    business = get_business_from_future(
+        get_business_future(5),
+    )
+
+    return business.review_rating
+                    </code></pre>
+
+                    <pre class="fragment"><code class="python" data-trim>
+def test_get_business_review_rating():
+    mock_business = models.Business(review_rating=4.5)
+    with mock.patch('get_business_future') as mock_future:
+        mock_future.return_value.\
+            result.return_value = mock_business
+
+        review_rating = get_business_review_rating(5)
+
+    assert review_rating == mock_business.review_rating
+                    </code></pre>
+
+                    <p class="fragment" data-code-focus="7"></p>
+
+                    <pre class="fragment"><code class="text" data-trim>
+error: Argument 1 to "Business" has incompatible
+ type "float"; expected "str"
+                    </code></pre>
 
                     <aside class="notes">
                         <ul>
-                            <li>We didn't observe significant speedups beyond four processes</li>
-                            <li>reduced test execution time by ~60% compared to old setup</li>
-                            <li>Creating the test environment (spinning up services) still takes a significant amount of time</li>
-                            <li>Faster iteration when developing since you don't need to tear down and recreate it</li>
+                            <li>In Yelp's case, when you instantiate a model, you get the actual model class - the NamedTuple code is just used for annotating it</li>
+                            <li>But even if you use NamedTuple objects you'll be doing a better job of mocking the data than with mock objects</li>
+                            <li>Our typed stubs make sure we provide properly typed mock data</li>
+                            <li>If we annotate our get_business_review_rating function, it'll also tell us that we expect a float, not a string - even without a test!</li>
+                            <li>And the pre-commit hook we talked about earlier makes sure that function will be annotated when you write it!</li>
                         </ul>
                     </aside>
                 </section>
+
 
                 
                 <section data-background="images/slide-background.png">
-                    <h3>Takeaways</h3>
+                    <h3>Take aways</h3>
 
                     <ul>
-                        <li>Use fixture factories for <strong>faster development</strong> and more correct test data</li>
-                        <li class="fragment">Convert tests for <strong>test isolation and repeatability</strong></li>
-                        <li class="fragment">Take advantage of it by executing tests in <strong>parallel</strong></li>
+                        <li>Annotate your code to <strong>improve documentation</strong> and <strong>catch bugs earlier</strong></li>
+                        <li class="fragment">With fine-grained typed data structures you gain a lot of insights into the data flow of your application</li>
+                        <li class="fragment">Potentially reduce the number of tests you have to write</li>
+                        <li class="fragment">Make the tests you do write more correct and comprehensive, and therefore <strong>more valuable</strong></li>
+                        <li class="fragment">You can use <strong>generated annotations</strong> to type check communication across network boundaries</li>
                     </ul>
 
                     <aside class="notes">
                         <ul>
-                            <li>In summary, what we're aiming for is increasing both developer productivity as well as
-                                developer happiness.</li>
-                            <li>Easier to write tests, easier to iterate since you don't have to reset datastore state</li>
-                            <li>If tests are not as hard to write developers are more likely to write them</li>
+                            <li>One thing I'll note is that ramping up on Python type annotations does take up time.</li>
+                            <li>Figuring out generics, how to annotate duck typed code or why mypy doesn't seem to "get it" in corner cases takes up time</li>
+                            <li>Same thing with just figuring out what the correct annotation is when all you get is a dict you don't really know much about</li>
+                            <li>Make sure you communicate early and honestly with your team</li>
                         </ul>
-                    </aside>
-                </section>
-
-
-                <section data-background="images/slide-background.png">
-                    <h3>Other talks by Yelpers</h3>
-
-                    <p>"Write more decorators (and fewer classes)"<br />by Antonio Verardi; Tuesday, 10:30, Anfiteatro 2</p>
-                    <p>"Teeing up Python: Code Golf"<br />by Lee Sheng; Wednesday, 12:10, PyCharm Room</p>
-
-                    <aside class="notes">
                     </aside>
                 </section>
 
@@ -832,17 +877,22 @@ $ python -m pytest -s -vvv -n 4 tests/acceptance
                 <section data-background="images/check_out_yelp.png">
                     <br />
                     <aside class="notes">
-                        <p>European offices!</p>
+                        <p>Check out our engineering blog</p>
+                        <p>Also check us out on GitHub, you'll find pre-commit there as well as a bunch of other neat stuff like bravado for service communication</p>
                     </aside>
                 </section>
 
 
-                <section data-background="images/slide-background.png">
-                    <h2>Questions?</h2>
+                <section data-background="images/we_are_hiring.png">
+                    <br />
 
-                    <p>&nbsp;</p>
-                    <p>sjaensch@yelp.com / @s_jaensch</p>
-                    <p>https://github.com/sjaensch/faster_end_to_end_tests_talk.git</p>
+                    <aside class="notes">
+                        <ul>
+                            <li>Engineering offices in Hamburg, Germany, London and San Francisco</li>
+                            <li>We do lots of cool stuff with Python 3.6 such as type annotations, asynchronous programming and more</li>
+                            <li>Come talk to us at the booth!</li>
+                        </ul>
+                    </aside>
                 </section>
 
             </div>
