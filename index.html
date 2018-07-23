@@ -70,13 +70,14 @@
                 <section data-background="images/slide-background.png">
                     <h3>Yelp's mission</h3>
 
-                    <p>To connect people to great local businesses</p>
+                    <p>To connect people with great local businesses</p>
 
                     <img src="images/yelp_mission_icons.png" style="box-shadow: none;" />
 
                     <aside class="notes">
                         <ul>
                             <li>We have over 130 million reviews online to help you select just the right one</li>
+                            <li>And we have about 30 million monthly mobile app unique users</li>
                         </ul>
                     </aside>
                 </section>
@@ -96,9 +97,26 @@
                         <ul>
                             <li>I promise the what and why will be short</li>
                             <li>I'm by no means an expert on type annotations, I'm just talking about what I learned as a user</li>
-                            <li>If you have tips or improvements to share, please come talk to me afterwards or contact me by email / twitter</li>
-                            <li>I'll be showing a lot of code to illustrate my examples, so if you don't like slides with code you might want to leave now</li>
+                            <li>I'll be showing a lot of code to illustrate my examples</li>
                         </ul>
+                    </aside>
+                </section>
+
+
+                <section data-background="images/slide-background.png">
+                    <h3>Other talks about type annotations</h3>
+
+                    <ul>
+                        <li>Carl Meyer: Type-checked Python in the real world (Instagram)</li>
+                        <li>Greg Price: Clearer Code at Scale: Static Types at Zulip and Dropbox</li>
+                    </ul>
+
+                    <aside class="notes">
+                        <ul>
+                            <li>If you'd like more introductory talks about type annotations, there weere two really good ones at PyCon US 2018.</li>
+                            <li>Both of these talks do a great job explaining why you'd want to add type annotations</li>
+                        </ul>
+                    </aside>
                 </section>
 
 
@@ -117,12 +135,17 @@ error: Argument 1 to "hello" has incompatible type "int";
  expected "str"
                     </code></pre>
 
+                    <pre class="fragment"><code class="python" data-trim>
+def process_data(self, items):
+    self.values = [item.value.id for item in items]
+                    </code></pre>
+
                     <aside class="notes">
                         <ul>
                             <li>Yes it's an obvious mistake, plus the code would still work</li>
+                            <li>Type annotations are documentation, so this indicates an error in your documentation</li>
                             <li>Much less clear when data gets passed around between modules, call stack gets deep</li>
-                            <li>Also if it was fine to call the function with an int you should say so</li>
-                            <li>Big difference in attitude to "duck typing"</li>
+                            <li>it's called values, but it's really value_ids, a type annotation might help when naming is imperfect</li>
                             <li>This is really a continuation of explicit is better than implicit</li>
                         </ul>
                     </aside>
@@ -159,8 +182,22 @@ error: Argument 1 to "hello" has incompatible type "int";
                         <ul>
                             <li>mypy is the static type checker for Python</li>
                             <li>beta quality: rapid progress, but still has a few bugs and things it doesn't check correctly</li>
-                            <li>expect having to do source code modifcations as you upgrade to a newer version</li>
                             <li>I'll also be using Python 3.6 syntax for annotations</li>
+                        </ul>
+                    </aside>
+                </section>
+
+
+                <section data-background="images/slide-background.png">
+                    <h3>Pyre</h3>
+
+                    <img src="images/pyre.png" />
+
+                    <aside class="notes">
+                        <ul>
+                            <li>It's much faster for larger codebases</li>
+                            <li>Is able to parallelize much of the work</li>
+                            <li>We don't use it yet at Yelp</li>
                         </ul>
                     </aside>
                 </section>
@@ -279,6 +316,21 @@ warn_redundant_casts = True
                 </section>
 
 
+                <section data-background="images/slide-background.png">
+                    <h3>Auto-generating type annotations</h3>
+
+                    <img src="images/monkeytype.png" />
+
+                    <img class="fragment" src="images/pyannotate.png" />
+
+                    <aside class="notes">
+                        <ul>
+                            <li>Great way to get started, but a developer needs to check all of the annotations</li>
+                            <li>They might be too strict, or just plain wrong when you run them as part of your tests</li>
+                            <li>PyAnnotate doesn't do Python 3 annotations, which is a real bummer. We've had good success with MonkeyType.</li>
+                        </ul>
+                    </aside>
+                </section>
 
                 <section data-background="images/slide-background.png">
                     <h3>Type your data</h3>
@@ -327,10 +379,9 @@ class BusinessDict(TypedDict):
                     </code></pre>
 
                     <pre class="fragment"><code class="python" data-trim>
-business = BusinessDict(
-    id=42, name='Yelp', address1=None, address2=None,
-)
-value = business.get('adress2', '')
+def get_biz_address(business: BusinessDict) -> str:
+    ...
+    value = business.get('adress2', '')
                     </code></pre>
 
                     <pre class="fragment"><code class="text" data-trim>
@@ -446,33 +497,41 @@ error: Value of type variable "Struct" of "namedtuple_from_dict"
 
 
                 <section data-background="images/slide-background.png">
-                    <h3>The solution</h3>
+                    <h3>The solution: Protocols</h3>
 
                     <pre><code class="python" data-trim>
-Struct = TypeVar('Struct')
+from typing_extensions import Protocol
 
+T = TypeVar('T')
+class NTProto(Protocol):
+    _source: str
+    _fields: Tuple[str, ...]
+
+    @classmethod
+    def _make(cls: Type[T], iterable: Iterable[Any]) -> T: ...
+    # add other methods, if needed
+
+NT = TypeVar('NT', bound=NTProto)
 def namedtuple_from_dict(
-    nt_class: Type[Struct],
-    dict_values: Dict,
-) -> Struct:
-    """Create a namedtuple from a dict, using the namedtuple
-    attribute names to look up values in the dict."""
-    return nt_class._make(    # type: ignore
-        dict_values.get(k) for k in nt_class._fields  # type: ignore
+    nt_class: Type[NT],
+    dict_values: Dict[str, Any],
+) -> NT:
+    return nt_class._make(
+        dict_values.get(k) for k in nt_class._fields
     )
                     </code></pre>
 
-                    <p class="fragment" data-code-focus="1"></p>
-                    <p class="fragment" data-code-focus="9-10"></p>
-                    <p class="fragment"><a href="https://github.com/python/mypy/issues/3915">https://github.com/python/mypy/issues/3915</a></p>
+                    <p class="fragment" data-code-focus="4"></p>
+                    <p class="fragment" data-code-focus="6"></p>
+                    <p class="fragment" data-code-focus="9"></p>
+                    <p class="fragment" data-code-focus="12"></p>
 
                     <aside class="notes">
                         <ul>
-                            <li>We need to remove the bounding; but now all we know is that we receive a class of some type and return an instance</li>
-                            <li>We lost knowledge about the fact that each of these classes will have a _field attribute and a _make method</li>
-                            <li>So we need to tell mypy to ignore these errors</li>
-                            <li>We still maintain the most important type information: the type of the instance we return</li>
-                            <li>But mypy cannot tell us when we pass an argument in that is not a NamedTuple</li>
+                            <li>There's no base NamedTuple class, the only common base class is the Tuple</li>
+                            <li>So we need a way to describe a certain behavior; this is what protocols do</li>
+                            <li>with Protocols you describe duck typing</li>
+                            <li>these are similar to Interfaces in Go or Protocols in Swift</li>
                         </ul>
                     </aside>
                 </section>
@@ -508,38 +567,6 @@ error: Incompatible types in assignment (expression has type "int",
 
 
                 <section data-background="images/slide-background.png">
-                    <h3>Redefining the type of properties</h3>
-
-                    <pre><code class="python" data-trim>
-class RegistryMetaclass(type):
-    """Error mapping registry class."""
-    registry: Dict[str, Type['BaseErrorMapping']] = {}
-    key_name: str = 'error_id'
-
-class ValidationRegistryMetaclass(RegistryMetaclass):
-    registry: Dict[str, Type['BaseValidationError']] = {}
-    key_name = 'exc_cls'
-                    </code></pre>
-
-                    <pre class="fragment"><code class="text" data-trim>
-error: Incompatible types in assignment (expression has type
- "Dict[str, Type[BaseValidationError]]", base class "RegistryMetaclass"
- defined the type as "Dict[str, Type[BaseErrorMapping]]")
-                    </code></pre>
-
-                    <p class="fragment"><a href="https://www.python.org/dev/peps/pep-0544/">https://www.python.org/dev/peps/pep-0544/</a></p>
-
-                    <aside class="notes">
-                        <ul>
-                            <li>you can try defining the type in the base class as a union, but that can have other unintended consequences</li>
-                            <li>The Protocols PEP will solve this and allow us to define behavior, i.e. support static duck typing</li>
-                            <li>structural subtyping should also enable us to properly type the namedtuple_from_dict function</li>
-                        </ul>
-                    </aside>
-                </section>
-
-
-                <section data-background="images/slide-background.png">
                     <h3>How to annotate descriptors</h3>
 
                     <pre><code class="python" data-trim>
@@ -548,17 +575,15 @@ V = TypeVar('V')
 
 class SetOnceProperty(Generic[T, V]):
 
-    def __get__(self, instance: Optional[T], owner: Type[T])
-     -> Union[V, 'SetOnceProperty']:
-        if instance is None:
-            return self
+    def __get__(self, instance: T, owner: Type[T]) -> V:
         return self._property_map[instance]
 
     def __set__(self, instance: T, value: V) -> None:
         if instance in self._property_map:
-            raise AttributeError('this attribute can only be set once.')
+            raise AttributeError(
+                'this attribute can only be set once.'
+            )
         self._property_map[instance] = value
-
 
 class BizAppContext():
     biz_user_id = SetOnceProperty['BizAppContext', int]()
@@ -566,17 +591,16 @@ class BizAppContext():
                     </code></pre>
 
                     <p class="fragment" data-code-focus="4"></p>
-                    <p class="fragment" data-code-focus="6-7"></p>
-                    <p class="fragment" data-code-focus="13-14"></p>
-                    <p class="fragment" data-code-focus="19"></p>
+                    <p class="fragment" data-code-focus="6"></p>
+                    <p class="fragment" data-code-focus="9"></p>
+                    <p class="fragment" data-code-focus="17"></p>
 
                     <img class="fragment" data-src="images/document-descriptors.png" />
 
                     <aside class="notes">
                         <ul>
                             <li>Generic class, T is the type of the object using the descriptor, V the type of the value the property will store</li>
-                            <li>Typing the __get__ method is slightly tricky, as instance can be None, that's why we use Optional[T]</li>
-                            <li>And in that case the descriptor returns itself, so we have to annotate the return value as a Union</li>
+                            <li>The __get__ method uses Type[T] for owner since it's the type of the instance</li>
                             <li>The __set__ method is where we implement the functionality</li>
                             <li>when we define biz_user_id we specify the two types, so now mypy knows biz_user_id is an int and will do proper type checking</li>
                         </ul>
@@ -631,9 +655,9 @@ error: Recursive types not fully supported yet,
 
                     <aside class="notes">
                         <ul>
-                            <li>How can we gain confidence in our changes? Typically the solution has been to write end-to-end tests, where you create these services in a test environment and make real calls to them</li>
+                            <li>How can we gain confidence in our changes? Typically the solution has been to write end-to-end tests, where you run these services in a test environment and make real calls to them</li>
                             <li>End-to-end tests are costly to run, eventually it gets infeasible to spin up all of your dependencies, which by the way might have dependencies of their own</li>
-                            <li>One solution that can help is using fake services. My colleague Lauris is talking about that right now in the other room, but spoiler alert, it still involves launching other processes, typically in a Docker container</li>
+                            <li>People try to get by with unit tests</li>
                         </ul>
                     </aside>
                 </section>
@@ -646,9 +670,9 @@ error: Recursive types not fully supported yet,
 
                     <aside class="notes">
                         <ul>
-                            <li>The service defines it's API in a spec document</li>
-                            <li>The client uses a library that knows about the spec, parses and utilizes it for making the endpoint calls</li>
-                            <li>Is there a way to take advantage of this spec and provide "compile time" checks?</li>
+                            <li>The service defines it's API in a specification document; at Yelp we use OpenAPI for that</li>
+                            <li>Each service has a client library that provides a pythonic interface for doing the network requests, based on the information in the spec</li>
+                            <li>Is there a way to take advantage of this specification and provide "compile time" checks?</li>
                         </ul>
                     </aside>
                 </section>
@@ -710,72 +734,44 @@ Business:
                         <ul>
                             <li>Again, I shortened it down to the essentials, so I removed documentation and other unrelated markup</li>
                             <li>We've seen a business object definition like this already, right? This looks quite similar to how we'd define a NamedTuple or a TypedDict</li>
-                            <li>The thing is, if you're manually writing those Python class definitions, they're bound to get out of sync with the spec</li>
+                            <li>note that review_rating is a str for historical reasons; this is very easy to miss</li>
                         </ul>
                     </aside>
                 </section>
 
 
                 <section data-background="images/slide-background.png">
-                    <h3>Generating typed objects and functions</h3>
+                    <h3>Making a service call</h3>
 
-                    <img src="images/stubs-from-spec.png" style="box-shadow: none;" />
+                    <pre><code class="python" data-trim>
+from business_clientlib.client import create_client
+
+client = create_client(...)
+
+business = client.business.business_info(
+    business_id=business_id,
+).result(timeout=TIMEOUT)
+
+return business.review_rating
+                </code></pre>
+
+                    <p class="fragment" data-code-focus="3"></p>
+                    <p class="fragment" data-code-focus="5"></p>
 
                     <aside class="notes">
                         <ul>
-                            <li>The spec already contains all of the information we need</li>
-                            <li>What if we parse the spec and generate NamedTuple objects for each model definition in the spec</li>
-
+                            <li>The client object will have attributes that correspond to the data in the spec</li>
+                            <li>The first level is based on the first part of the endpoint URL, the second level is the operation ID.</li>
                         </ul>
                     </aside>
                 </section>
 
 
                 <section data-background="images/slide-background.png">
-                    <h3>Putting it all together</h3>
+                    <h3>Testing our network code</h3>
 
                     <pre><code class="python" data-trim>
-class BusinessFuture(HTTPFuture):
-    pass
-
-class Business(NamedTuple):
-    id: int
-    address1: str
-    address2: Optional[str]
-    review_rating: str
-                    </code></pre>
-
-                    <pre class="fragment"><code class="python" data-trim>
-def get_business_future(
-    business_id: int
-) -> BusinessFuture:
-    return client.business.business_info(
-        business_id=business_id,
-    )
-
-def get_business_from_future(
-    business_future: BusinessFuture,
-) -> Business:
-    return business_future.result(timeout=TIMEOUT)
-                    </code></pre>
-
-                    <aside class="notes">
-                        <ul>
-                            <li>Fully type checked from start to end - including the function call chain</li>
-                            <li>Makes sure you supply all required arguments, with the right type</li>
-                            <li>Structured response objects, no possibility for mistyping an attribute name</li>
-                            <li>Modern IDEs like PyCharm provide advanced intellisense and autocompletion</li>
-                            <li>All of this is checked and verified before you wrote a single line of tests!</li>
-                        </ul>
-                    </aside>
-                </section>
-
-
-                <section data-background="images/slide-background.png">
-                    <h3>Mocking out the network call</h3>
-
-                    <pre><code class="python" data-trim>
-def get_business_review_rating(business_id):
+def get_business_review_rating(business_id: int) -> float:
     business = client.business.business_info(
         business_id=business_id,
     ).result(timeout=TIMEOUT)
@@ -796,26 +792,61 @@ def test_get_business_review_rating():
                     </code></pre>
 
                     <p class="fragment" data-code-focus="7"></p>
+                    <p class="fragment" data-code-focus="9-10"></p>
 
                     <aside class="notes">
                         <ul>
-                            <li>This doesn't catch the error that we're providing the wrong mock data, and consequently are not properly converting the rating to float (which is what we do want the function to return)</li>
+                            <li>The test doesn't catch the error that we're not properly converting the rating to float (which is what we do want the function to return), since we're not correclty mocking the data we get from the other service</li>
                             <li>Catching these types of errors requires integration tests that spin up a version of the service you're calling</li>
-                            <li>My colleague Lauris Jullien is giving a talk right now about how to make that easier, but spoiler alert, it still requires you to spin up another process, typically within a Docker container</li>
-                            <li>Can our work we did help us detect these errors easier?</li>
+                            <li>Can type annotations help us detect these errors?</li>
                         </ul>
                     </aside>
                 </section>
 
 
                 <section data-background="images/slide-background.png">
-                    <h3>Testing with type safe models</h3>
+                    <h3>Generating typed objects and functions</h3>
+
+                    <img src="images/stubs-from-spec.png" style="box-shadow: none;" />
+
+                    <aside class="notes">
+                        <ul>
+                            <li>The spec already contains all of the information we need</li>
+                            <li>The thing is, if you're manually writing those Python class annotations, they're bound to get out of sync with the spec</li>
+                            <li>What if we parse the spec and generate annotations for each model definition in the spec</li>
+                        </ul>
+                    </aside>
+                </section>
+
+
+                <section data-background="images/slide-background.png">
+                    <h3>Generating model annotations</h3>
 
                     <pre><code class="python" data-trim>
-def get_business_review_rating(business_id):
-    business = get_business_from_future(
-        get_business_future(5),
-    )
+class Business():
+    id: int
+    address1: str
+    address2: Optional[str]
+    review_rating: str
+                    </code></pre>
+
+                    <aside class="notes">
+                        <ul>
+                            <li>This corresponds to the OpenAPI model definition</li>
+                            <li>Developers still need to manually annotate the code with them</li>
+                        </ul>
+                    </aside>
+                </section>
+
+
+                <section data-background="images/slide-background.png">
+                    <h3>Testing with type safe data model objecta</h3>
+
+                    <pre><code class="python" data-trim>
+def get_business_review_rating(business_id: int) -> float:
+    business = client.business.business_info(
+        business_id=business_id,
+    ).result(timeout=TIMEOUT)
 
     return business.review_rating
                     </code></pre>
@@ -841,15 +872,58 @@ error: Argument 1 to "Business" has incompatible
 
                     <aside class="notes">
                         <ul>
-                            <li>In Yelp's case, when you instantiate a model, you get the actual model class - the NamedTuple code is just used for annotating it</li>
-                            <li>But even if you use NamedTuple objects you'll be doing a better job of mocking the data than with mock objects</li>
                             <li>Our typed stubs make sure we provide properly typed mock data</li>
-                            <li>If we annotate our get_business_review_rating function, it'll also tell us that we expect a float, not a string - even without a test!</li>
-                            <li>And the pre-commit hook we talked about earlier makes sure that function will be annotated when you write it!</li>
+                            <li>Another way would be to write wrapper functions around each client call that uses these models as annotations for return values</li>
+                            <li>But that gets tedious very fast, can we do it automatically?</li>
                         </ul>
                     </aside>
                 </section>
 
+
+                <section data-background="images/slide-background.png">
+                    <h3>Annotating the client class</h3>
+
+                    <pre><code class="python" data-trim>
+business = client.business.business_info(
+    business_id=business_id,
+).result(timeout=TIMEOUT)
+                    </code></pre>
+
+                    <pre class="fragment"><code class="python" data-trim>
+T = TypeVar('T')
+
+class BusinessServiceClient:
+    business: business_resource
+
+class business_resource:
+    def business_info(
+        self,
+        business_id: int,
+    ) -> HttpFuture[Business]: ...
+
+class HttpFuture(Generic[T]):
+    def result(self, timeout: Optional[float]=None) -> T:
+        ...
+
+                    </code></pre>
+
+                    <p class="fragment" data-code-focus="5"></p>
+                    <p class="fragment" data-code-focus="6"></p>
+                    <p class="fragment" data-code-focus="9"></p>
+                    <p class="fragment" data-code-focus="12"></p>
+                    <p class="fragment" data-code-focus="14"></p>
+                    <p class="fragment" data-code-focus="15"></p>
+
+                    <aside class="notes">
+                        <ul>
+                            <li>Fully type checked from start to end - including the function call chain</li>
+                            <li>Makes sure you supply all required arguments, with the right type</li>
+                            <li>Structured response objects, no possibility for mistyping an attribute name</li>
+                            <li>Modern IDEs like PyCharm provide advanced intellisense and autocompletion</li>
+                            <li>All of this is checked and verified before you wrote a single line of tests!</li>
+                        </ul>
+                    </aside>
+                </section>
 
                 
                 <section data-background="images/slide-background.png">
@@ -910,6 +984,8 @@ error: Argument 1 to "Business" has incompatible
                 width: '90%',
                 height: '100%',
                 margin: 0.0,
+                width: 1920,
+                height: 1200,
 
                 // More info https://github.com/hakimel/reveal.js#dependencies
                 // { src: 'plugin/highlight/highlight.js', async: true, callback: function() { hljs.initHighlightingOnLoad(); } }
