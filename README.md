@@ -1,4 +1,4 @@
-This is the source code to my EuroPython 2017 talk slides ["Fixture factories for faster end-to-end tests"](https://ep2017.europython.eu/conference/talks/fixture-factories-for-faster-end-to-end-tests). It's a clone of the reveal.js repository with my content added. The text is in the `index.html` file, you can find all the images in the `images` subfolder.
+This is the source code to my EuroPython 2018 talk slides ["Type annotations with larger code bases"](https://ep2018.europython.eu/conference/talks/type-annotations-with-larger-codebases). It's a clone of the reveal.js repository with my content added. The text is in the `index.html` file, you can find all the images in the `images` subfolder.
 
 ## Presenting
 
